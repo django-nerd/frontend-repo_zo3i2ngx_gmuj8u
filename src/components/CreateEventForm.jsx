@@ -27,6 +27,33 @@ const CreateEventForm = () => {
     return Number.isFinite(n) ? n : null
   }
 
+  const formatErrorDetail = (detail) => {
+    // FastAPI 422 typically returns an array of objects
+    try {
+      if (!detail) return ''
+      if (typeof detail === 'string') return detail
+      if (Array.isArray(detail)) {
+        const lines = detail.map((d) => {
+          const loc = Array.isArray(d.loc) ? d.loc.join('.') : d.loc
+          const msg = d.msg || JSON.stringify(d)
+          return `${loc}: ${msg}`
+        })
+        return lines.join('\n')
+      }
+      if (typeof detail === 'object') {
+        // If it's a plain object, try common fields or stringify nicely
+        if (detail.msg && detail.loc) {
+          const loc = Array.isArray(detail.loc) ? detail.loc.join('.') : detail.loc
+          return `${loc}: ${detail.msg}`
+        }
+        return JSON.stringify(detail, null, 2)
+      }
+      return String(detail)
+    } catch (e) {
+      return 'Unexpected error format'
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -49,8 +76,9 @@ const CreateEventForm = () => {
       const maybeJson = await res.json().catch(() => null)
 
       if (!res.ok) {
-        const detail = maybeJson?.detail || (typeof maybeJson === 'string' ? maybeJson : '')
-        throw new Error(detail || 'Failed to create event')
+        const detail = maybeJson?.detail ?? maybeJson
+        const pretty = formatErrorDetail(detail) || 'Failed to create event'
+        throw new Error(pretty)
       }
 
       const data = maybeJson || {}
@@ -68,9 +96,9 @@ const CreateEventForm = () => {
       <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-6">
         <h3 className="text-xl font-semibold text-white mb-4">Create a new event</h3>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input name="name" value={form.name} onChange={handleChange} placeholder="Event name" className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none" required />
+          <input name="name" value={form.name} onChange={handleChange} placeholder="Event name" className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text:white/50 focus:outline-none" required />
           <input name="organizer_name" value={form.organizer_name} onChange={handleChange} placeholder="Your name" className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none" required />
-          <input type="email" name="organizer_email" value={form.organizer_email} onChange={handleChange} placeholder="Your email" className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none md:col-span-2" required />
+          <input type="email" name="organizer_email" value={form.organizer_email} onChange={handleChange} placeholder="Your email" className="px-4 py-3 rounded-xl bg:white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none md:col-span-2" required />
           <div className="grid grid-cols-2 gap-3">
             <input inputMode="decimal" name="budget_min" value={form.budget_min} onChange={handleChange} placeholder="Min budget" className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none" />
             <input inputMode="decimal" name="budget_max" value={form.budget_max} onChange={handleChange} placeholder="Max budget" className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none" />
@@ -79,8 +107,8 @@ const CreateEventForm = () => {
             {loading ? 'Creating…' : 'Create event'}
           </button>
         </form>
-        {message && <p className="mt-3 text-sm text-green-200">{message}</p>}
-        {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
+        {message && <p className="mt-3 text-sm text-green-200 whitespace-pre-line">{message}</p>}
+        {error && <pre className="mt-3 text-sm text-red-300 whitespace-pre-wrap break-words">{error}</pre>}
       </div>
     </section>
   )
