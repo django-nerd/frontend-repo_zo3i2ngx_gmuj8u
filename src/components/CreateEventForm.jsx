@@ -10,6 +10,7 @@ const CreateEventForm = () => {
   })
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
 
   const backend = import.meta.env.VITE_BACKEND_URL
 
@@ -18,28 +19,45 @@ const CreateEventForm = () => {
     setForm((f) => ({ ...f, [name]: value }))
   }
 
+  const toNumberOrNull = (v) => {
+    if (v === undefined || v === null) return null
+    const trimmed = String(v).trim()
+    if (trimmed === '') return null
+    const n = Number(trimmed)
+    return Number.isFinite(n) ? n : null
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setMessage('')
+    setError('')
     try {
+      const payload = {
+        name: form.name.trim(),
+        organizer_name: form.organizer_name.trim(),
+        organizer_email: form.organizer_email.trim(),
+        budget_min: toNumberOrNull(form.budget_min),
+        budget_max: toNumberOrNull(form.budget_max),
+      }
       const res = await fetch(`${backend}/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          organizer_name: form.organizer_name,
-          organizer_email: form.organizer_email,
-          budget_min: form.budget_min ? Number(form.budget_min) : null,
-          budget_max: form.budget_max ? Number(form.budget_max) : null,
-        }),
+        body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error('Failed to create event')
-      const data = await res.json()
+
+      const maybeJson = await res.json().catch(() => null)
+
+      if (!res.ok) {
+        const detail = maybeJson?.detail || (typeof maybeJson === 'string' ? maybeJson : '')
+        throw new Error(detail || 'Failed to create event')
+      }
+
+      const data = maybeJson || {}
       setMessage(`Created event: ${data.name}`)
       setForm({ name: '', organizer_name: '', organizer_email: '', budget_min: '', budget_max: '' })
     } catch (err) {
-      setMessage(err.message)
+      setError(err.message || 'Something went wrong')
     } finally {
       setLoading(false)
     }
@@ -54,14 +72,15 @@ const CreateEventForm = () => {
           <input name="organizer_name" value={form.organizer_name} onChange={handleChange} placeholder="Your name" className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none" required />
           <input type="email" name="organizer_email" value={form.organizer_email} onChange={handleChange} placeholder="Your email" className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none md:col-span-2" required />
           <div className="grid grid-cols-2 gap-3">
-            <input name="budget_min" value={form.budget_min} onChange={handleChange} placeholder="Min budget" className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none" />
-            <input name="budget_max" value={form.budget_max} onChange={handleChange} placeholder="Max budget" className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none" />
+            <input inputMode="decimal" name="budget_min" value={form.budget_min} onChange={handleChange} placeholder="Min budget" className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none" />
+            <input inputMode="decimal" name="budget_max" value={form.budget_max} onChange={handleChange} placeholder="Max budget" className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none" />
           </div>
-          <button disabled={loading} className="md:col-span-2 inline-flex items-center justify-center px-5 py-3 rounded-xl bg-green-500 hover:bg-green-600 text-white font-semibold transition">
+          <button disabled={loading} className="md:col-span-2 inline-flex items-center justify-center px-5 py-3 rounded-xl bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white font-semibold transition">
             {loading ? 'Creating…' : 'Create event'}
           </button>
         </form>
-        {message && <p className="mt-3 text-sm text-white/80">{message}</p>}
+        {message && <p className="mt-3 text-sm text-green-200">{message}</p>}
+        {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
       </div>
     </section>
   )
